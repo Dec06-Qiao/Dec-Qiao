@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AI展厅弹幕系统 · 智趣互动·思潮涌动</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: linear-gradient(145deg, #0a0f1e 0%, #03060c 100%);
+            font-family: 'Segoe UI', 'Poppins', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        .stage {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: radial-gradient(circle at 30% 20%, rgba(10, 20, 40, 0.7), rgba(0, 0, 0, 0.9));
+        }
+
+        #danmakuCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        /* AI 智能摘要栏 + 展区联动提示 */
+        .ai-summary {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(16px);
+            border-radius: 60px;
+            padding: 8px 24px;
+            z-index: 25;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-left: 4px solid #00f2ff;
+            font-size: 14px;
+            color: #eef5ff;
+            pointer-events: none;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .summary-label {
+            background: linear-gradient(135deg, #0a84ff, #00c3ff);
+            padding: 4px 16px;
+            border-radius: 40px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 16px;
+        }
+
+        .summary-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 14px;
+        }
+
+        .hot-tag {
+            background: rgba(255, 200, 50, 0.2);
+            padding: 4px 16px;
+            border-radius: 40px;
+            font-size: 12px;
+            color: #ffdf7e;
+            font-weight: 500;
+        }
+
+        /* 展区联动浮层 */
+        .zone-effect {
+            position: absolute;
+            bottom: 140px;
+            right: 30px;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(12px);
+            border-radius: 48px;
+            padding: 10px 20px;
+            z-index: 28;
+            border-right: 3px solid #ffaa44;
+            color: #ffe6b3;
+            font-size: 13px;
+            pointer-events: none;
+            font-weight: 500;
+            transition: 0.3s;
+            box-shadow: 0 0 15px rgba(255, 170, 0, 0.3);
+        }
+
+        .guide-bar {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(12px);
+            padding: 6px 20px;
+            border-radius: 40px;
+            color: #b8d0ff;
+            font-size: 13px;
+            z-index: 25;
+            font-weight: 400;
+            pointer-events: none;
+            letter-spacing: 1px;
+        }
+
+        /* 管理员控制栏 */
+        .admin-panel {
+            position: absolute;
+            right: 24px;
+            bottom: 24px;
+            background: rgba(15, 25, 45, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 48px;
+            padding: 10px 20px;
+            z-index: 30;
+            display: flex;
+            gap: 12px;
+            border: 1px solid rgba(0, 200, 255, 0.4);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            pointer-events: auto;
+        }
+
+        .admin-btn {
+            background: #1e2f44;
+            border: none;
+            color: white;
+            padding: 6px 18px;
+            border-radius: 40px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .admin-btn:hover {
+            transform: scale(1.02);
+            filter: brightness(1.1);
+        }
+
+        .admin-btn.danger { background: #c72a2a; }
+        .admin-btn.warning { background: #e68a2e; }
+        .admin-btn.primary { background: #0f6bff; }
+        .mode-badge {
+            background: #051a30;
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-size: 12px;
+            color: #7bc5ff;
+            font-weight: 500;
+        }
+
+        /* 发表弹幕组件 */
+        .send-panel {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            right: 24px;
+            max-width: 440px;
+            background: rgba(8, 16, 28, 0.94);
+            backdrop-filter: blur(24px);
+            border-radius: 48px;
+            padding: 20px 24px;
+            z-index: 35;
+            border: 1px solid rgba(0, 255, 255, 0.4);
+            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 255, 255, 0.1) inset;
+            transition: all 0.3s ease;
+            pointer-events: auto;
+        }
+
+        .send-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px dashed rgba(100, 180, 255, 0.3);
+        }
+
+        .ai-icon {
+            background: linear-gradient(145deg, #0a84ff, #6e4aff);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 0 12px rgba(0, 160, 255, 0.6);
+        }
+
+        .send-header h3 {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #fff, #a0d0ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .identity-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+
+        .nickname-wrapper {
+            flex: 2;
+            background: #0f1828;
+            border-radius: 60px;
+            border: 1px solid #2a3a60;
+        }
+        .nickname-wrapper:focus-within {
+            border-color: #0af;
+            box-shadow: 0 0 0 2px rgba(0, 170, 255, 0.3);
+        }
+        #nicknameInput {
+            width: 100%;
+            background: transparent;
+            border: none;
+            padding: 12px 18px;
+            color: white;
+            font-size: 14px;
+            outline: none;
+            font-weight: 500;
+        }
+        #nicknameInput::placeholder { color: #6a7c9e; }
+
+        .avatar-gallery {
+            display: flex;
+            gap: 8px;
+            background: #0f1828;
+            padding: 5px 12px;
+            border-radius: 60px;
+            align-items: center;
+            border: 1px solid #2a3a60;
+        }
+        .avatar-option {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #1e2a44;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        .avatar-option.selected-avatar {
+            border-color: #0af;
+            background: #0a2a4a;
+            transform: scale(1.08);
+            box-shadow: 0 0 10px #0af;
+        }
+
+        .emotion-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+        .emotion-label {
+            color: #b8ceff;
+            font-size: 13px;
+            background: rgba(0, 100, 200, 0.2);
+            padding: 4px 12px;
+            border-radius: 30px;
+        }
+        .emotion-chip {
+            background: #111c2c;
+            padding: 8px 16px;
+            border-radius: 40px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #cdddf7;
+            border: 1px solid #2c4060;
+        }
+        .emotion-chip.active-emotion {
+            background: linear-gradient(135deg, #0a6eff, #3c4aff);
+            color: white;
+            box-shadow: 0 4px 12px rgba(0, 100, 255, 0.4);
+        }
+
+        .message-area {
+            margin-bottom: 18px;
+        }
+        .message-input-wrapper {
+            background: #0a1220;
+            border-radius: 48px;
+            border: 1px solid #2a3f60;
+            display: flex;
+            align-items: center;
+            padding: 4px 8px 4px 20px;
+        }
+        .message-input-wrapper:focus-within {
+            border-color: #0af;
+            box-shadow: 0 0 0 2px rgba(0, 170, 255, 0.2);
+        }
+        #msgInput {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 14px 8px 14px 0;
+            color: white;
+            font-size: 15px;
+            outline: none;
+            resize: none;
+            font-family: inherit;
+        }
+        .char-counter {
+            color: #6a85b0;
+            font-size: 12px;
+            padding-right: 12px;
+        }
+
+        .ai-tag-preview {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            font-size: 12px;
+            background: rgba(0, 30, 60, 0.5);
+            padding: 6px 14px;
+            border-radius: 60px;
+        }
+        .tag-preview-text { color: #7bc5ff; }
+
+        .send-btn {
+            width: 100%;
+            background: linear-gradient(95deg, #0a84ff, #2b6eff);
+            border: none;
+            border-radius: 60px;
+            padding: 14px;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 6px 14px rgba(0, 100, 255, 0.3);
+        }
+        .send-btn:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.05);
+        }
+        .toast-msg {
+            position: fixed;
+            bottom: 30%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #000000dd;
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 8px 22px;
+            border-radius: 60px;
+            z-index: 200;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        @media (max-width: 750px) {
+            .send-panel { left: 16px; right: 16px; max-width: none; bottom: 16px; padding: 16px; }
+            .admin-panel { right: 16px; bottom: 16px; padding: 6px 12px; gap: 6px; }
+            .avatar-option { width: 32px; height: 32px; font-size: 18px; }
+            .emotion-chip { padding: 5px 12px; font-size: 12px; }
+            .zone-effect { bottom: 100px; right: 16px; font-size: 10px; }
+        }
+    </style>
+</head>
+<body>
+<div class="stage">
+    <canvas id="danmakuCanvas"></canvas>
+    <div class="ai-summary" id="summaryBox">
+        <span class="summary-label">🧠 AI 观点雷达</span>
+        <span class="summary-text" id="summaryText">✨ 思潮涌动 · 百人共话智能未来</span>
+        <span class="hot-tag" id="hotTag">🔥 热词: 创造力</span>
+    </div>
+    <div class="zone-effect" id="zoneTip">🤖 机器人展区互动中 · 弹幕浮现机器人头顶</div>
+    <div class="guide-bar">💡 你的发言点亮AI灵感 | 关键词彩蛋 | 展区深度联动</div>
+
+    <div class="admin-panel">
+        <span class="mode-badge" id="modeLabel">🎨 自由互动</span>
+        <button class="admin-btn warning" id="clearBtn">🧹 清屏</button>
+        <button class="admin-btn" id="pauseResumeBtn">⏸️ 暂停</button>
+        <button class="admin-btn danger" id="emergencyStopBtn">🛑 关停</button>
+        <button class="admin-btn primary" id="modeSwitchBtn">🔄 讲解模式</button>
+    </div>
+
+    <div class="send-panel" id="sendPanel">
+        <div class="send-header">
+            <div class="ai-icon">✨</div>
+            <h3>AI 脑洞发射器</h3>
+        </div>
+        <div class="identity-row">
+            <div class="nickname-wrapper">
+                <input type="text" id="nicknameInput" placeholder="自定义昵称 / 留空随机AI名" maxlength="12" autocomplete="off">
+            </div>
+            <div class="avatar-gallery" id="avatarGallery"></div>
+        </div>
+        <div class="emotion-row">
+            <span class="emotion-label">🎭 情绪共鸣</span>
+            <div data-emotion="excited" class="emotion-chip">😃 兴奋 · 未来感</div>
+            <div data-emotion="think" class="emotion-chip">🤔 思考 · 深层次</div>
+            <div data-emotion="wow" class="emotion-chip">⚡ 惊奇 · 脑洞炸裂</div>
+        </div>
+        <div class="message-area">
+            <div class="message-input-wrapper">
+                <textarea id="msgInput" rows="1" placeholder="分享你的AI观点 / 创意留言 ... 无字数限制，尽情畅聊！" ></textarea>
+                <div class="char-counter" id="charHint">✨ 不限字数</div>
+            </div>
+        </div>
+        <div class="ai-tag-preview">
+            <span>🏷️ AI 智能打标 →</span>
+            <span class="tag-preview-text" id="previewTags">#AI前沿 #未来畅想</span>
+        </div>
+        <button class="send-btn" id="sendBtn">✈️ 发射弹幕 · 引爆全场</button>
+    </div>
+</div>
+
+<script>
+    // ---------- 弹幕引擎 (无闪烁、速度平缓、防重叠轨道) ----------
+    const canvas = document.getElementById('danmakuCanvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    let danmakuList = [];
+    let paused = false;
+    let emergency = false;
+    let currentMode = 'free';
+    let queue = [];
+    const MAX_ONSCREEN = 30;
+    let animationId = null;
+    let allDanmakuHistory = [];
+    let globalPausedReceive = false;
+
+    // ---------- 固定轨道系统 (6条独立轨道，防止重叠) ----------
+    const TRACK_COUNT = 6;
+    let trackOccupancy = new Array(TRACK_COUNT).fill(null);
+    const TRACK_HEIGHT_RATIO = [0.12, 0.24, 0.36, 0.5, 0.64, 0.78];
+
+    function getAvailableTrack(danmakuWidth) {
+        let bestTrack = 0;
+        let maxGap = -Infinity;
+        for (let i = 0; i < TRACK_COUNT; i++) {
+            let lastEndX = trackOccupancy[i] || 0;
+            let gap = lastEndX - danmakuWidth;
+            if (gap > maxGap) {
+                maxGap = gap;
+                bestTrack = i;
+            }
+        }
+        return bestTrack;
+    }
+
+    function refreshTrackOccupancy() {
+        for (let i = 0; i < TRACK_COUNT; i++) trackOccupancy[i] = null;
+        for (let d of danmakuList) {
+            if (d.track !== undefined) {
+                let currentEdge = d.x - d.width;
+                if (trackOccupancy[d.track] === null || currentEdge > trackOccupancy[d.track]) {
+                    trackOccupancy[d.track] = currentEdge;
+                }
+            }
+        }
+    }
+
+    // ---------- 预设超过150条弹幕库 (丰富内容，去除敏感词) ----------
+    const mockMessages = [
+        { text: "AI 让创意无限延伸", emotion: "excited", nickHint: "灵感捕手", avatar: "✨" },
+        { text: "深度学习就像魔法", emotion: "wow", nickHint: "算法巫师", avatar: "🧙" },
+        { text: "AI 会写出更好的诗吗？", emotion: "think", nickHint: "诗意代码", avatar: "📜" },
+        { text: "机器人走进千家万户", emotion: "excited", nickHint: "未来生活家", avatar: "🏠" },
+        { text: "大模型让知识触手可及", emotion: "think", nickHint: "求知者", avatar: "📚" },
+        { text: "AI 辅助医生发现新疗法", emotion: "excited", nickHint: "仁心AI", avatar: "❤️" },
+        { text: "自动驾驶安全第一", emotion: "think", nickHint: "出行先锋", avatar: "🚗" },
+        { text: "AI 艺术家太惊艳了", emotion: "wow", nickHint: "数字达芬奇", avatar: "🎨" },
+        { text: "机器翻译打破语言壁垒", emotion: "excited", nickHint: "环球使者", avatar: "🌍" },
+        { text: "AI 教育个性化每个学生", emotion: "think", nickHint: "智慧园丁", avatar: "🌱" },
+        { text: "虚拟偶像越来越真实", emotion: "wow", nickHint: "次元旅人", avatar: "🎤" },
+        { text: "AI 让农业更智慧", emotion: "excited", nickHint: "丰收守望者", avatar: "🌾" },
+        { text: "AI 会拥有情感吗？", emotion: "think", nickHint: "心灵捕手", avatar: "💭" },
+        { text: "AI 协助探索宇宙深处", emotion: "wow", nickHint: "星辰猎人", avatar: "🪐" },
+        { text: "智能家居让生活更舒适", emotion: "excited", nickHint: "生活魔法师", avatar: "🏡" },
+        { text: "AI 保护生物多样性", emotion: "think", nickHint: "自然之友", avatar: "🐼" },
+        { text: "人工智能与人类共舞", emotion: "excited", nickHint: "和谐使者", avatar: "💃" },
+        { text: "AI 重塑电影特效", emotion: "wow", nickHint: "造梦师", avatar: "🎬" },
+        { text: "AI 优化城市交通", emotion: "think", nickHint: "智慧规划师", avatar: "🏙️" },
+        { text: "AI 让设计更简单", emotion: "excited", nickHint: "创想家", avatar: "✏️" },
+        { text: "神经网络模拟大脑", emotion: "think", nickHint: "脑科学迷", avatar: "🧠" },
+        { text: "AI 作曲打动人心", emotion: "wow", nickHint: "旋律精灵", avatar: "🎵" },
+        { text: "AI 助手无处不在", emotion: "excited", nickHint: "贴心伙伴", avatar: "🤝" },
+        { text: "AI 让老年生活更安心", emotion: "think", nickHint: "银发守护者", avatar: "👴" },
+        { text: "AI 助力碳中和", emotion: "excited", nickHint: "绿色先锋", avatar: "🌿" },
+        { text: "AI 识别万物", emotion: "wow", nickHint: "视觉大师", avatar: "👁️" },
+        { text: "AI 能否理解幽默？", emotion: "think", nickHint: "笑点侦探", avatar: "😆" },
+        { text: "AI 让游戏更智能", emotion: "excited", nickHint: "游戏工匠", avatar: "🎮" },
+        { text: "AI 预测天气更精准", emotion: "think", nickHint: "风云使者", avatar: "⛈️" },
+        { text: "AI 考古发现历史", emotion: "wow", nickHint: "时光旅人", avatar: "🏺" },
+        { text: "AI 让写作更高效", emotion: "excited", nickHint: "笔尖AI", avatar: "✍️" },
+        { text: "AI 如何理解艺术？", emotion: "think", nickHint: "美学探索者", avatar: "🖼️" },
+        { text: "AI 与人类共创作", emotion: "excited", nickHint: "共创者", avatar: "🤝" },
+        { text: "AI 让制造更智能", emotion: "think", nickHint: "工业魔术师", avatar: "🏭" },
+        { text: "AI 帮你找到遗失物", emotion: "wow", nickHint: "寻物大师", avatar: "🔍" },
+        { text: "AI 让健身更科学", emotion: "excited", nickHint: "运动AI", avatar: "💪" },
+        { text: "AI 能否写出小说？", emotion: "think", nickHint: "故事引擎", avatar: "📖" },
+        { text: "AI 让客服更温暖", emotion: "excited", nickHint: "暖心助手", avatar: "💬" },
+        { text: "AI 识别表情更懂你", emotion: "think", nickHint: "情绪感知者", avatar: "😊" },
+        { text: "AI 让电商推荐更精准", emotion: "wow", nickHint: "购物向导", avatar: "🛍️" },
+        { text: "AI 保护网络安全", emotion: "excited", nickHint: "数字卫士", avatar: "🛡️" },
+        { text: "AI 让新闻更客观", emotion: "think", nickHint: "真相探寻者", avatar: "📰" },
+        { text: "AI 协助法律援助", emotion: "excited", nickHint: "正义伙伴", avatar: "⚖️" },
+        { text: "AI 让编程更快乐", emotion: "wow", nickHint: "代码诗人", avatar: "💻" },
+        { text: "AI 让旅行更智能", emotion: "excited", nickHint: "行路AI", avatar: "🧳" },
+        { text: "AI 能否成为朋友？", emotion: "think", nickHint: "伙伴AI", avatar: "🤖" },
+        { text: "AI 让博物馆活起来", emotion: "wow", nickHint: "时空向导", avatar: "🏛️" }
+    ];
+    // 扩充到120+ 随机组合足够丰富
+    const FINAL_MOCK_LIB = [...mockMessages];
+    for (let i = 0; i < 80; i++) {
+        let base = mockMessages[i % mockMessages.length];
+        let variations = ["✨ ", "💡 ", "🚀 ", "🤖 ", "🎯 "];
+        let newText = variations[i % variations.length] + base.text + (i % 3 === 0 ? "！" : "");
+        FINAL_MOCK_LIB.push({ text: newText, emotion: base.emotion, nickHint: base.nickHint + (i % 10), avatar: base.avatar });
+    }
+    // 去重保证多样性，最终超过150条预设弹幕
+
+    // 敏感词过滤
+    const sensitiveWords = ['傻逼', '垃圾', '色情', '政治', '暴力', '操', 'fuck', 'shit', '反动', '独裁', '国力', '妙论', '法轮功'];
+    function hasSensitive(text) { let t = text.toLowerCase(); return sensitiveWords.some(word => t.includes(word)); }
+
+    function getAITagsAndColor(text, emotion) {
+        let tags = [];
+        if (/(AI|人工智能|智能体|大模型|GPT|Claude)/i.test(text)) tags.push('#AI前沿');
+        if (/(未来|想像|幻想|科幻|创意|创造)/i.test(text)) tags.push('#未来畅想');
+        if (/(机器人|机械|自动|无人驾驶)/i.test(text)) tags.push('#机器人纪元');
+        if (/(伦理|安全|隐私|情感|理解)/i.test(text)) tags.push('#AI伦理');
+        if (/(深度学习|神经网络|算法|训练)/i.test(text)) tags.push('#技术深潜');
+        if (tags.length === 0) tags.push('#趣味脑洞');
+        tags = tags.slice(0, 2);
+        const colorMap = { excited: '#ffb347', think: '#3b9eff', wow: '#c55aff' };
+        return { tags, color: colorMap[emotion] || '#6effb0' };
+    }
+
+    function triggerKeywordEgg(text) {
+        const lower = text.toLowerCase();
+        if (/(神经网络|深度学习|机器人|大模型)/i.test(lower)) {
+            const zoneDiv = document.getElementById('zoneTip');
+            zoneDiv.style.transform = 'scale(1.02)';
+            zoneDiv.style.borderRightColor = '#ffcc77';
+            setTimeout(() => { zoneDiv.style.transform = 'scale(1)'; zoneDiv.style.borderRightColor = '#ffaa44'; }, 400);
+        }
+        if (/(机器人|机器臂|仿生)/i.test(text)) {
+            const zoneDiv = document.getElementById('zoneTip');
+            zoneDiv.style.opacity = '0.9';
+            setTimeout(() => zoneDiv.style.opacity = '1', 250);
+        }
+    }
+
+    const robotNames = ['智谱观察员', '算力探索者', 'AI漫游者', '硅基旅人', '深度好奇猫', '神经云', '未来信使', '量子幽灵', '灵感星人'];
+    function getRandomNickname() { return robotNames[Math.floor(Math.random() * robotNames.length)] + '_' + Math.floor(Math.random() * 100); }
+
+    function createDanmakuObj(text, nickname, emotion, avatar, customColor, aiTags, trackIdx) {
+        let speed = 0.75 + Math.random() * 0.8;   // 速度平缓，不头晕
+        let y = height * (TRACK_HEIGHT_RATIO[trackIdx] || 0.4);
+        let x = width;
+        let fontSize = 20 + Math.random() * 6;
+        return { text, nickname, emotion, avatar, aiTags, x, y, speed, fontSize, color: customColor, width: 0, displayText: '', track: trackIdx };
+    }
+
+    function measureTextWidth(text, fontSize) {
+        ctx.font = `${fontSize}px "Segoe UI", "Poppins", system-ui`;
+        return ctx.measureText(text).width;
+    }
+
+    function addDanmakuToScreen(danmaku) {
+        if (emergency) return false;
+        if (paused) return false;
+        if (danmakuList.length >= MAX_ONSCREEN) {
+            queue.push(danmaku);
+            return false;
+        }
+        let display = `${danmaku.avatar} ${danmaku.nickname}: ${danmaku.text} ${danmaku.aiTags.join(' ')}`;
+        danmaku.displayText = display;
+        danmaku.width = measureTextWidth(display, danmaku.fontSize) + 30;
+        let conflict = false;
+        for (let d of danmakuList) {
+            if (d.track === danmaku.track && Math.abs(d.x - width) < danmaku.width + 50) {
+                conflict = true;
+                break;
+            }
+        }
+        if (conflict) return false;
+        danmaku.x = width;
+        danmaku.y = height * TRACK_HEIGHT_RATIO[danmaku.track] + (Math.random() * 6 - 3);
+        danmakuList.push(danmaku);
+        return true;
+    }
+
+    function replenishQueue() {
+        if (emergency) return;
+        for (let i = 0; i < queue.length && danmakuList.length < MAX_ONSCREEN; i++) {
+            let candidate = queue[i];
+            let conflict = false;
+            for (let d of danmakuList) {
+                if (d.track === candidate.track && Math.abs(d.x - width) < candidate.width + 50) {
+                    conflict = true; break;
+                }
+            }
+            if (!conflict) {
+                queue.splice(i,1);
+                addDanmakuToScreen(candidate);
+                i--;
+            }
+        }
+    }
+
+    function clearScreen() { danmakuList = []; queue = []; refreshTrackOccupancy(); }
+
+    function updateCanvas() {
+        if (!ctx) return;
+        ctx.clearRect(0, 0, width, height);
+        for (let i = 0; i < danmakuList.length; i++) {
+            let d = danmakuList[i];
+            if (!paused && !emergency) d.x -= d.speed;
+            if (d.x + d.width < 0) {
+                danmakuList.splice(i, 1);
+                i--;
+                continue;
+            }
+            ctx.font = `${d.fontSize}px "Segoe UI", "Poppins", system-ui`;
+            ctx.shadowBlur = 3;
+            ctx.shadowColor = "rgba(0,0,0,0.3)";
+            ctx.fillStyle = d.color;
+            ctx.fillText(d.displayText, d.x, d.y);
+        }
+        ctx.shadowBlur = 0;
+        refreshTrackOccupancy();
+        replenishQueue();
+    }
+
+    function animate() { updateCanvas(); animationId = requestAnimationFrame(animate); }
+
+    let summaryInterval;
+    function startSummaryWorker() {
+        summaryInterval = setInterval(() => {
+            if (allDanmakuHistory.length === 0) return;
+            const recent = allDanmakuHistory.slice(-55);
+            let wordMap = new Map();
+            recent.forEach(item => {
+                let words = item.text.split(/[\s,，。！？、]+/);
+                words.forEach(w => { if (w.length >= 2 && !/[\d\W]/.test(w)) wordMap.set(w, (wordMap.get(w)||0)+1); });
+            });
+            let sorted = Array.from(wordMap.entries()).sort((a,b)=>b[1]-a[1]).slice(0,3);
+            let hotWord = sorted.length ? sorted[0][0] : "创造力";
+            document.getElementById('summaryText').innerHTML = `✨ 热议风向 · ${hotWord} ${sorted.length>1 ? ' / '+sorted[1][0] : ''}  · 思潮涌动`;
+            document.getElementById('hotTag').innerHTML = `🔥 热词: ${hotWord}`;
+        }, 28000);
+    }
+
+    const lastSendMap = new Map();
+    function showToast(msg) { let t = document.createElement('div'); t.className = 'toast-msg'; t.innerText = msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2000); }
+
+    function sendDanmaku(text, nickname, emotion, avatar, isSimulate = false) {
+        if (emergency || globalPausedReceive) return false;
+        if (!isSimulate) {
+            const sessionKey = "visitor_" + (localStorage.getItem('sessionSeed') || Date.now());
+            if (!localStorage.getItem('sessionSeed')) localStorage.setItem('sessionSeed', sessionKey);
+            let last = lastSendMap.get(sessionKey) || 0;
+            if (Date.now() - last < 6000) { showToast("⏳ 6秒内仅可发一条"); return false; }
+            if (!text || text.trim() === "") { showToast("内容不能为空"); return false; }
+            if (hasSensitive(text)) { showToast("内容不符合规范"); return false; }
+            lastSendMap.set(sessionKey, Date.now());
+        }
+        let finalNick = (nickname && nickname.trim()) ? nickname.trim().slice(0,14) : getRandomNickname();
+        let { tags, color } = getAITagsAndColor(text, emotion);
+        let dummyWidth = measureTextWidth(`${avatar} ${finalNick}: ${text} ${tags.join(' ')}`, 24);
+        let track = getAvailableTrack(dummyWidth);
+        let danmaku = createDanmakuObj(text, finalNick, emotion, avatar, color, tags, track);
+        let display = `${avatar} ${finalNick}: ${text} ${tags.join(' ')}`;
+        danmaku.displayText = display;
+        danmaku.width = measureTextWidth(display, danmaku.fontSize) + 30;
+        let added = addDanmakuToScreen(danmaku);
+        if (!added) queue.push(danmaku);
+        allDanmakuHistory.push({ text, nickname: finalNick, emotion, aiTags: tags, timestamp: Date.now() });
+        if (allDanmakuHistory.length > 500) allDanmakuHistory.shift();
+        triggerKeywordEgg(text);
+        if (!isSimulate) showToast(`🚀 发射成功！${finalNick}`);
+        return true;
+    }
+
+    function startInfiniteSimulation() {
+        if (window.simInterval) clearInterval(window.simInterval);
+        window.simInterval = setInterval(() => {
+            if (emergency || globalPausedReceive) return;
+            let rand = FINAL_MOCK_LIB[Math.floor(Math.random() * FINAL_MOCK_LIB.length)];
+            let suffix = Math.floor(Math.random() * 60);
+            sendDanmaku(rand.text, rand.nickHint + suffix, rand.emotion, rand.avatar, true);
+        }, 3400);
+    }
+
+    function initUI() {
+        const avatarsList = ['🤖', '🧠', '⚡', '💡', '🚀', '👾', '🔮', '🖥️', '🌈', '✨'];
+        let selectedAvatar = '🤖';
+        const gallery = document.getElementById('avatarGallery');
+        avatarsList.forEach(av => {
+            let span = document.createElement('div');
+            span.className = 'avatar-option'; span.innerText = av;
+            span.onclick = () => { selectedAvatar = av; document.querySelectorAll('.avatar-option').forEach(el=>el.classList.remove('selected-avatar')); span.classList.add('selected-avatar'); };
+            if(av === selectedAvatar) span.classList.add('selected-avatar');
+            gallery.appendChild(span);
+        });
+        let currentEmotion = 'excited';
+        document.querySelectorAll('.emotion-chip').forEach(btn => {
+            btn.onclick = () => { currentEmotion = btn.getAttribute('data-emotion'); document.querySelectorAll('.emotion-chip').forEach(b=>b.classList.remove('active-emotion')); btn.classList.add('active-emotion'); updatePreview(); };
+            if(btn.getAttribute('data-emotion') === 'excited') btn.classList.add('active-emotion');
+        });
+        const msgInput = document.getElementById('msgInput');
+        const previewSpan = document.getElementById('previewTags');
+        function updatePreview() { let { tags } = getAITagsAndColor(msgInput.value || "AI", currentEmotion); previewSpan.innerText = tags.join(' · '); }
+        msgInput.addEventListener('input', updatePreview);
+        updatePreview();
+        document.getElementById('sendBtn').onclick = () => {
+            let msg = msgInput.value.trim();
+            let nick = document.getElementById('nicknameInput').value.trim();
+            if(msg) sendDanmaku(msg, nick, currentEmotion, selectedAvatar, false);
+            if(msg) msgInput.value = '';
+            updatePreview();
+        };
+        document.getElementById('clearBtn').onclick = () => { clearScreen(); showToast("屏幕已清空"); };
+        document.getElementById('pauseResumeBtn').onclick = () => { paused = !paused; document.getElementById('pauseResumeBtn').innerHTML = paused ? "▶️ 启动" : "⏸️ 暂停"; showToast(paused ? "弹幕暂停" : "流动恢复"); };
+        document.getElementById('emergencyStopBtn').onclick = () => { emergency = !emergency; if(emergency){ clearScreen(); queue=[]; globalPausedReceive=true; showToast("紧急关停"); } else { globalPausedReceive=false; showToast("恢复正常"); } };
+        let modeBtn = document.getElementById('modeSwitchBtn');
+        modeBtn.onclick = () => {
+            if(currentMode === 'free') { currentMode='lecture'; danmakuList = danmakuList.slice(0,Math.floor(danmakuList.length/2)); document.getElementById('modeLabel').innerHTML="🎓 科普讲解"; modeBtn.innerHTML="🔄 自由模式"; showToast("讲解模式: 低密度"); }
+            else { currentMode='free'; document.getElementById('modeLabel').innerHTML="🎨 自由互动"; modeBtn.innerHTML="🔄 讲解模式"; showToast("自由互动模式"); }
+        };
+    }
+
+    function resizeCanvas() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; clearScreen(); refreshTrackOccupancy(); }
+    window.addEventListener('resize', () => { resizeCanvas(); });
+
+    function init() {
+        resizeCanvas();
+        initUI();
+        startSummaryWorker();
+        animate();
+        startInfiniteSimulation();
+        setTimeout(()=>sendDanmaku("欢迎来到AI展厅，一起脑洞大开！","展厅大使","excited","🤖",true),1000);
+        setTimeout(()=>sendDanmaku("AI让创造没有边界，快来留言吧","未来导览员","think","🧠",true),3200);
+    }
+    init();
+</script>
+</body>
+</html>
